@@ -1,0 +1,860 @@
+---
+title: "CSA Distribution in Relation to LILA Populations in NC, NM, and NY"
+author: OdetteDuLac
+date: "December 2021"
+output: 
+  html_document:
+    theme: paper
+    highlight: pygments
+    toc: yes
+    toc_depth: 5
+    toc_float: yes
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Download Libraries
+library(tidyverse)
+library(tmap)
+library(tmaptools)
+library(sf)
+library(ggplot2)
+library(readxl)
+library(dplyr)
+library(kableExtra)
+library(httr)
+library(rjson)
+library(spdep)
+library(spatstat)
+```
+
+### Introduction
+[Food insecurity and food access](https://www.brookings.edu/research/beyond-food-deserts-america-needs-a-new-approach-to-mapping-food-insecurity/) and the negative mental and physical health outcomes that communities that experience these challenges face are pressing concerns in communities across the US.
+
+According to the [USDA](https://www.ers.usda.gov/topics/food-nutrition-assistance/food-security-in-the-us/key-statistics-graphics.aspx), 10.5% of US households and 14.8% of US households with children were food insecure in 2020.
+
+Lower food access and food security has also been associated with negative health outcomes, especially in relation to chronic and/or diet-related diseases, such as [hypertension, diabetes,](https://doi.org/10.3945/jn.109.112573) and [obesity](https://doi.org/10.3390/ijerph17072434), and mental heath issues, such as [anxiety and depression](https://doi.org/10.1377/hlthaff.2015.0645). Similarly, food insecurity is linked to 
+
+Some studies have found that areas classified as food deserts combat food access issues and increase healthy food access through [community driven initiatives](https://www.researchgate.net/publication/279274322_Research_Article_Food_Availability_and_the_Food_Desert_Frame_in_Detroit_An_Overview_of_the_City%27s_Food_System), such as smaller grocers, community and school gardens, and farmer's markets.
+
+Of course, food access and insecurity challenges are largely driven by economic factors and simply increasing the supply of fresh, healthy foods cannot necessarily solve these issues.
+
+[Community Supported Agriculture (CSA)](https://www.healthyfoodaccess.org/launch-a-business-models-farmers-markets-csa) is where a farmer or agricultural distributor can sell their products directly to an association or community of individuals. These individuals become members or subscribers to a CSA by purchasing shares of the produce grown.
+
+Many farmer's markets and now CSAs are able to accept SNAP benefits as well. So, if economic barriers to them are removed, CSAs are a community driven initiative that has potential to increase food access, in particular to high quality fresh fruits and vegetables. And in fact different studies have found CSA participation can lead to increases in [fruit and vegetable consumption](http://dx.doi.org/10.5888/pcd10.130053), increases in [positive attitudes and behaviors](https://doi.org/10.3390/su9091543) related to food consumption, and positives effects on [social and emotional well-being](https://doi.org/10.3390/su12114516), which all contribute to overall better health outcomes.
+
+Thus, CSAs can be useful tool for solving problems of food access, food security, and the negative physical and mental health outcomes associated with these issues.
+
+We do not know how CSAs are geographically distributed in relation to low food access and food insecure areas or how well CSAs could potentially sere the communities in these areas.
+
+***
+
+### Data Preparation
+My thematic data are the [National Community-Supported Agriculture Directory](https://catalog.data.gov/dataset/national-community-supported-agriculture-directory), which is a list of the CSAs across the US, and the USDA's [Food Environment Atlas](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/), which has county level demographic data related to food and health. My spatial data consists of state and county shapefiles from the US Census.
+
+My data preparation includes: geocoding the CSAs data and filtering, aggregating, and subsetting the population, access, and CSA data.
+
+```{r dataprep, message = FALSE, warning = FALSE}
+######################
+### Read in Data
+#####################
+# Read in population by county data sheet of xls file
+fenv.atlas.cty.pop <- read_excel("../data/food_environment_atlas.xls", sheet = "Supplemental Data - County")
+
+# Read in CSA directory data
+csa.dir <- read_csv("../data/national_csa_directory.csv")
+
+# Read in Access by county data sheet of xls file
+fenv.atlas.cty.accs <- read_excel("../data/food_environment_atlas.xls", sheet = "ACCESS")
+
+# Read in State Abbreviations and State Names data
+st.abr.n <- read_csv("../data/state_names_abbr.csv")
+
+# Read in US State spatial data layer
+states.shp <- st_read("../data/cb_2020_us_state_500k.shp")
+
+# Read in US counties spatial data layer
+county.shp <- st_read("../data/cb_2020_us_county_500k.shp")
+
+######################
+### Data Wrangling
+#####################
+######## Spatial Data Wrangling
+
+### Geocoding CSA directory data
+# Create a string variable with the first part of the API location
+esri.url.1 <- "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?singleLine="
+
+# Create a string variable with the final part of the API location
+esri.url.3 <- "&forStorage=false&f=pjson"
+
+# Remove Rows with NA values for address
+csa.dir.na <- na.omit(csa.dir[,c(1, 11:15)])
+
+# Trim white spaces
+csa.dir.na$HQ_ST <- str_trim(csa.dir.na$HQ_ST, side = "both")
+
+### Create a field in the table with the address info formatted
+### for the Geocoder API call
+## Paste fields together
+csa.dir.na$Addr_gc <- paste(csa.dir.na$HQ_ST, 
+                         csa.dir.na$HQ_City, 
+                         csa.dir.na$HQ_State, 
+                         csa.dir.na$HQ_Zip, 
+                         sep=", ")
+
+#Replace spaces with %20
+csa.dir.na$Addr_gc <- str_replace_all(csa.dir.na$Addr_gc,
+                                   " ",
+                                   "%20")
+ 
+## Remove # and - symbols from addresses
+csa.dir.na$Addr_gc <- str_remove_all(csa.dir.na$Addr_gc, "#")
+csa.dir.na$Addr_gc <- str_remove_all(csa.dir.na$Addr_gc, "-")
+
+# Create an empty object to hold the results
+gc.esri <- NULL
+
+# Loop to geocode each observation in csa.dir
+for (i in 1:nrow(csa.dir.na)) {
+  
+  # Use GET from httr
+  esri.api <- GET(paste0(esri.url.1,              # 1st part of API
+                         csa.dir.na$Addr_gc[i],  # 2nd part (for each hospital)
+                         esri.url.3               # 3rd part of API
+                         ))
+
+  # Get output from API
+  gc <- fromJSON(content(esri.api, 
+                         type="text",
+                         encoding = "UTF-8"))
+  
+  # Extract information from json output
+  # Assign x coordinate to object
+  lon <- gc$candidates[[1]]$location[["x"]]
+  # Assign y coordinate to object
+  lat <- gc$candidates[[1]]$location[["y"]]
+  # Assign score to object (match of address to geocoder)
+  score <- gc$candidates[[1]]$score
+  
+  # Add output to holder
+  gc.esri <- rbind(gc.esri, c(lon, lat, score))
+}
+
+# Convert results to dataframe
+gc.esri <- as.data.frame(gc.esri)
+names(gc.esri) <- c("lon", "lat", "score")
+
+# Add the Coordinates to the original CSA table
+csa.dir.na <- bind_cols(csa.dir.na, gc.esri)
+
+# Create spatial data object from a table of coordinates!
+csa.dir.sp <- st_as_sf(csa.dir.na,               # Object
+                     coords = c("lon", "lat"),  # Fields with x,y data
+                     crs = 4326)                # Coord Ref System
+                                                # crs = 4326 means WGS84!
+########
+# Merge spatial data object of CSA with CSA tabular data
+csa.dir.sp <- merge(csa.dir.sp, 
+                    csa.dir, 
+                    by = "CSA_ID",
+                    all.x = TRUE)
+
+# Create subset of CSA directory that only includes SNAP accepting CSAs
+csa.dir.sp <- transform(csa.dir.sp, AccptdPmnt_SNAP = as.character(AccptdPmnt_SNAP))
+csa.dir.sp.snap <- csa.dir.sp[which(csa.dir.sp$AccptdPmnt_SNAP == "1"),]
+
+#######
+
+# Remove territories that don't have data from shapefile
+states.shp  = filter(states.shp, !(NAME %in% c("Guam", "United States Virgin Islands", "Puerto Rico", "Commonwealth of the Northern Mariana Islands","American Samoa")))
+
+######
+### Filter Shapefiles
+# Extract county shapefiles for North Carolina, New Mexico, and New York only
+# North Carolina
+nc.cty.shp <- filter(county.shp, county.shp$STUSPS == "NC")
+# New Mexico
+nm.cty.shp <- filter(county.shp, county.shp$STUSPS == "NM")
+# New York
+ny.cty.shp <- filter(county.shp, county.shp$STUSPS == "NY")
+
+
+######### Tabular Data Wrangling
+# Simplify column names in population data
+colnames(fenv.atlas.cty.pop) <-  gsub("Population_Estimate", "PEst", colnames(fenv.atlas.cty.pop))
+
+########
+# Aggregate the data from county to state Level for both population 
+# and food access data
+# Grouping Data by State
+fenv.atlas.cty.pop.sum <- fenv.atlas.cty.pop %>%
+                          group_by(State) %>%
+                          summarize(TStPop = sum(PEst_2015, na.rm = TRUE))
+
+fenv.atlas.cty.accs.sum <- fenv.atlas.cty.accs %>%
+                          group_by(State) %>%
+                          summarize(TLILA_POP = sum(LACCESS_LOWI15, na.rm = TRUE))
+
+## Access data has state abbreviations, while population data has state names; need to give them
+## variable in common in order to merge; need merged data to calculate and then make choropleth
+# Merge access data with table that has both state names and abbreviations
+fenv.atlas.cty.accs.sum <- merge(fenv.atlas.cty.accs.sum, 
+                         st.abr.n, 
+                         by.x = "State",
+                         by.y = "abbreviation", 
+                         all.x = TRUE)
+
+# Change column names in access data for smoother merge and usability
+colnames(fenv.atlas.cty.accs.sum)[3] <- "STATE"
+colnames(fenv.atlas.cty.accs.sum)[1] <- "ST_Abbr"
+
+# Change column name in population data for smoother merge and usability
+colnames(fenv.atlas.cty.pop.sum)[1] <- "STATE"
+
+#Rename DC, "of" <- "Of" to remove later occurring error
+fenv.atlas.cty.pop.sum[9,1] <- "District Of Columbia"
+
+# Merge access data by state with population data by state
+fenv.atlas.st.accs.mj <- merge(fenv.atlas.cty.accs.sum,
+                                fenv.atlas.cty.pop.sum,
+                                by = "STATE",
+                                all = TRUE)
+
+fenv.atlas.st.accs.mj$PCT_LILA_ST <- fenv.atlas.st.accs.mj$TLILA_POP / fenv.atlas.st.accs.mj$TStPop * 100
+
+########
+
+### Filter Population and Access Data for North Carolina, New Mexico, and New York only
+
+# Filter Population Data
+# North Carolina
+nc.cty.pop <- filter(fenv.atlas.cty.pop, fenv.atlas.cty.pop$State == "North Carolina")
+# New Mexico
+nm.cty.pop <- filter(fenv.atlas.cty.pop, fenv.atlas.cty.pop$State == "New Mexico")
+# New York
+ny.cty.pop <- filter(fenv.atlas.cty.pop, fenv.atlas.cty.pop$State == "New York")
+
+# Filter Access Data
+# North Carolina
+nc.cty.accs <- filter(fenv.atlas.cty.accs, fenv.atlas.cty.accs$State == "NC")
+# New Mexico
+nm.cty.accs <- filter(fenv.atlas.cty.accs, fenv.atlas.cty.accs$State == "NM")
+# New York
+ny.cty.accs <- filter(fenv.atlas.cty.accs, fenv.atlas.cty.accs$State == "NY")
+
+# Merge Population and Access Datasets
+# North Carolina
+nc.cty.accs.pop.mj <-merge(nc.cty.accs,
+                          nc.cty.pop,
+                          by = "FIPS",
+                          all.x = TRUE)
+# New Mexico
+nm.cty.accs.pop.mj <- merge(nm.cty.accs,
+                          nm.cty.pop,
+                          by = "FIPS",
+                          all.x = TRUE)
+# New York
+ny.cty.accs.pop.mj <- merge(ny.cty.accs,
+                          ny.cty.pop,
+                          by = "FIPS",
+                          all.x = TRUE)
+
+# Merge Access and Population data to shapefile for easy tmap use and calculation
+# North Carolina
+nc.cty.shp.mj <- merge(nc.cty.shp,
+                      nc.cty.accs.pop.mj,
+                      by.x = "GEOID",
+                      by.y = "FIPS",
+                      all.x = TRUE)
+# New Mexico
+nm.cty.shp.mj <- merge(nm.cty.shp,
+                      nm.cty.accs.pop.mj,
+                      by.x = "GEOID",
+                      by.y = "FIPS",
+                      all.x = TRUE)
+# New York
+ny.cty.shp.mj <- merge(ny.cty.shp,
+                      ny.cty.accs.pop.mj,
+                      by.x = "GEOID",
+                      by.y = "FIPS",
+                      all.x = TRUE)
+########
+
+### Calculate Percent LILA Pop by county in each state
+
+# Remove NA values for each state
+nc.cty.shp.mj <- nc.cty.shp.mj[which(!is.na(nc.cty.shp.mj$LACCESS_LOWI15), !is.na(nc.cty.shp.mj$PEst_2015)), ]
+nm.cty.shp.mj <- nm.cty.shp.mj[which(!is.na(nm.cty.shp.mj$LACCESS_LOWI15), !is.na(nm.cty.shp.mj$PEst_2015)), ]
+ny.cty.shp.mj <- ny.cty.shp.mj[which(!is.na(ny.cty.shp.mj$LACCESS_LOWI15), !is.na(ny.cty.shp.mj$PEst_2015)), ]
+
+# North Carolina
+# Percentage of population in each county that is LILA (2015)
+nc.cty.shp.mj$PCT_LILA_POP <- (nc.cty.shp.mj$LACCESS_LOWI15/nc.cty.shp.mj$PEst_2015) * 100
+
+# New Mexico
+# Percentage of population in each county that is LILA (2015)
+nm.cty.shp.mj$PCT_LILA_POP <- (nm.cty.shp.mj$LACCESS_LOWI15/nm.cty.shp.mj$PEst_2015) * 100
+
+# New York
+# Percentage of population in each county that is LILA (2015)
+ny.cty.shp.mj$PCT_LILA_POP <- (ny.cty.shp.mj$LACCESS_LOWI15/ny.cty.shp.mj$PEst_2015) * 100
+
+#########
+# Filter CSA directory for CSAs only in NC (37), NM (35), and NY (36)
+csa.nc <- filter(csa.dir.sp, csa.dir.sp$HQ_StateFIPS.x == "37")
+csa.nm <- filter(csa.dir.sp, csa.dir.sp$HQ_StateFIPS.x == "35")
+csa.ny <- filter(csa.dir.sp, csa.dir.sp$HQ_StateFIPS.x == "36")
+
+# Reproject CSA data (crs = WSG84) to crs of NC, NM, and NY
+csa.nc <- st_transform(csa.nc, crs = st_crs(nc.cty.shp.mj))
+csa.nm <- st_transform(csa.nm, crs = st_crs(nm.cty.shp.mj))
+csa.ny <- st_transform(csa.ny, crs = st_crs(ny.cty.shp.mj))
+```
+
+***
+
+### Exploratory Spatial Data Analysis
+##### Data Description and Summary
+```{r descsum, message = FALSE, warning = FALSE}
+###########################
+#### Descriptive Statistics
+###########################
+# Descriptive statistics table for Food Access data
+state.accs.desc.stats.tb <- tibble(Measure = c("NA Observations (County)",
+                                    "Minimum",
+                                    "Maximum",
+                                    "Mean",
+                                    "Median",
+                                    "Standard Deviation"),
+                        # NA data is from the nonaggregated table, because the aggregated table  
+                        # removes NAs to sum by state; And I want to know how many NA values are in
+                        # the initial data set
+                        Low_Income_Low_Access =c(sum(is.na(fenv.atlas.cty.accs$LACCESS_LOWI15)),
+                                       # The rest of the descriptive statistics are from the
+                                       # table aggregated by state
+                                       min(fenv.atlas.cty.accs.sum$TLILA_POP, na.rm = TRUE),
+                                       max(fenv.atlas.cty.accs.sum$TLILA_POP, na.rm = TRUE),
+                                       mean(fenv.atlas.cty.accs.sum$TLILA_POP, na.rm = TRUE),
+                                       median(fenv.atlas.cty.accs.sum$TLILA_POP, na.rm = TRUE),
+                                       sd(fenv.atlas.cty.accs.sum$TLILA_POP, na.rm = TRUE)
+                                       )
+                        )
+
+# Descriptive statistics table for CSA Data
+csa.dir.desc.stats.tb <- tibble(Measure = c("Total CSAs",
+                                    "NA Observations (SNAP)",
+                                    "CSAs in NC",
+                                    "CSAs in NM",
+                                    "CSAs in NY",
+                                    "SNAP Accepting CSAs"),
+                                    CSA = c(nrow(csa.dir.sp),
+                                    sum(is.na(csa.dir.sp$AccptdPmnt_SNAP)),
+                                    nrow(csa.nc),
+                                    nrow(csa.nm),
+                                    nrow(csa.ny),
+                                    nrow(csa.dir.sp.snap)
+                                       )
+                        )
+```
+
+```{r descsumLILA, message = FALSE, warning = FALSE}
+# State level population data
+kable(state.accs.desc.stats.tb, 
+      digits = 1,
+      format.args = list(big.mark = ",",
+                         scientific = FALSE,
+                         drop0trailing = TRUE),
+      caption = "Summary of Low Income Low Access Population in 2015 by State") %>% 
+    kable_styling(bootstrap_options = c("striped", 
+                                      "hover", 
+                                      "condensed", 
+                                      "responsive"), 
+                full_width = F)
+```
+
+The LILA population data has 20 count-level NA observations. There is a large difference in the minimum and maximum state LILA populations, and there is a large standard deviation from the mean. 
+
+```{r descsumCSA, message = FALSE, warning = FALSE}
+kable(csa.dir.desc.stats.tb, 
+      digits = 1,
+      format.args = list(big.mark = ",",
+                         scientific = FALSE,
+                         drop0trailing = TRUE),
+      caption = "Summary of CSAs") %>% 
+    kable_styling(bootstrap_options = c("striped", 
+                                      "hover", 
+                                      "condensed", 
+                                      "responsive"), 
+                full_width = F)
+```
+
+There are 898 CSAs total, and of those CSAs 25 are in North Carolina, 3 are in New Mexico, and 76 are in New York. the data set also has information on the SNAP acceptance status for every CSA, and 192 of the 898 CSAs accept SNAP.
+
+
+```{r hist, message = FALSE, warning = FALSE}
+#################
+###### Histograms
+#################
+# histogram of population data by state
+st.hist.lila <- ggplot(fenv.atlas.st.accs.mj, 
+                      aes(x = PCT_LILA_ST)) +
+                geom_histogram(bins = 17,
+                               fill = "orange",
+                               col = "black",
+                               size = 0.25,
+                               alpha = 0.5) +
+                labs(x = "Percent LILA Population",
+                     y = "Number of States") +
+                ggtitle("Percent LILA Population Per State") +
+                theme_minimal()
+
+# histogram of access data by county
+nc.cty.hist.lila <- ggplot(nc.cty.shp.mj, 
+                      aes(x = PCT_LILA_POP)) +
+                    geom_histogram(bins = 15,
+                                   fill = "orange",
+                                   col = "black",
+                                   size = 0.25,
+                                   alpha = 0.5) +
+                    labs(x = "Percent LILA Population",
+                     y = "Number of Counties") +
+                    ggtitle("Percent LILA Population Per County in NC") +
+                    theme_minimal()
+
+nm.cty.hist.lila <- ggplot(nm.cty.shp.mj, 
+                      aes(x = PCT_LILA_POP)) +
+                    geom_histogram(bins = 15,
+                                   fill = "orange",
+                                   col = "black",
+                                   size = 0.25,
+                                   alpha = 0.5) +
+                    labs(x = "Percent LILA Population",
+                     y = "Number of Counties") +
+                    ggtitle("Percent LILA Population Per County in NM") +
+                    theme_minimal()
+
+ny.cty.hist.lila <- ggplot(ny.cty.shp.mj, 
+                      aes(x = PCT_LILA_POP)) +
+                    geom_histogram(bins = 15,
+                                   fill = "orange",
+                                   col = "black",
+                                   size = 0.25,
+                                   alpha = 0.5) +
+                    labs(x = "Percent LILA Population",
+                     y = "Number of Counties") +
+                    ggtitle("Percent LILA Population Per County in NY") +
+                    theme_minimal()
+```
+
+```{r histST, message = FALSE, warning = FALSE}
+# Histogram layout
+# PCT LILA Pop by State
+st.hist.lila
+```
+
+There is a more central tendency, and most counties have between 5-10% LILA populations. There are a few outliers at both ends.
+
+```{r histNC, message = FALSE, warning = FALSE}
+# PCT LILA Pop by County in NC
+nc.cty.hist.lila
+```
+
+NC's histogram is skewed right, and most counties have between 0-10% LILA populations. There is a single outlier near 40%.
+
+```{r histNM, message = FALSE, warning = FALSE}
+# PCT LILA Pop by County in NM
+nm.cty.hist.lila
+```
+
+NM's histogram is skewed more right than central. Most NM counties have between 10-25% LILA populations, with a few outliers between 35-50%.
+
+```{r histNY, message = FALSE, warning = FALSE}
+# PCT LILA Pop by County in NY
+ny.cty.hist.lila
+```
+
+NY's histogram has a more central tendency. Nearly all NY counties have LILA populations less than 10%.
+
+```{r choro, message = FALSE, warning = FALSE}
+####################
+#### Choropleth Maps
+####################
+# Put tmap in interactive mode
+tmap_mode("view")
+
+### Create choropleths of percentage of population in each county that is LILA (2015)
+# North Carolina
+nc.lila.pop.map <- tm_shape(nc.cty.shp.mj) +
+                tm_basemap("Esri.WorldTopoMap") +
+                tm_polygons("PCT_LILA_POP",
+                    title =  "NC: Percentage of LILA Population by County Population",
+                    style = "jenks", 
+                    palette = "Purples",
+                    lwd = 0.25,
+                    border.col = "gray40",
+                    border.alpha = 0.5,
+                    id = "NAME",                
+                    popup.vars = c("LILA POP(%)" = "PCT_LILA_POP")) +
+                tm_view(view.legend.position = c("right", "top"))
+
+# New Mexico
+nm.lila.pop.map <- tm_shape(nm.cty.shp.mj) +
+                tm_basemap("Esri.WorldTopoMap") +
+                tm_polygons("PCT_LILA_POP",
+                    title =  "NM: Percentage of LILA Population by County Population",
+                    style = "jenks", 
+                    palette = "Purples",
+                    lwd = 0.25,
+                    border.col = "gray40",
+                    border.alpha = 0.5,
+                    id = "NAME",                
+                    popup.vars = c("LILA POP(%)" = "PCT_LILA_POP")) +
+                tm_view(view.legend.position = c("right", "top"))
+# New York
+ny.lila.pop.map <- tm_shape(ny.cty.shp.mj) +
+                tm_basemap("Esri.WorldTopoMap") +
+                tm_polygons("PCT_LILA_POP",
+                    title =  "NY: Percentage of LILA Population by County Population",
+                    style = "jenks", 
+                    palette = "Purples",
+                    lwd = 0.25,
+                    border.col = "gray40",
+                    border.alpha = 0.5,
+                    id = "NAME",                
+                    popup.vars = c("LILA POP(%)" = "PCT_LILA_POP")) +
+                tm_view(view.legend.position = c("right", "top"))
+```
+
+```{r choroNC, message = FALSE, warning = FALSE}
+# North Carolina choropleth
+nc.lila.pop.map
+```
+
+`r nc.cty.shp.mj$NAMELSAD[which.max(nc.cty.shp.mj$PCT_LILA_POP)]` has the highest percent LILA population in NC, and `r nc.cty.shp.mj$NAMELSAD[which.min(nc.cty.shp.mj$PCT_LILA_POP)]` has the lowest.
+
+```{r choroNM, message = FALSE, warning = FALSE}
+# New Mexico choropleth
+nm.lila.pop.map
+```
+
+`r nm.cty.shp.mj$NAMELSAD[which.max(nm.cty.shp.mj$PCT_LILA_POP)]` has the highest percent LILA population in NM, and `r nm.cty.shp.mj$NAMELSAD[which.min(nm.cty.shp.mj$PCT_LILA_POP)]` has the lowest.
+
+```{r choroNY, message = FALSE, warning = FALSE}
+# New York choropleth
+ny.lila.pop.map
+```
+
+`r ny.cty.shp.mj$NAMELSAD[which.max(ny.cty.shp.mj$PCT_LILA_POP)]` has the highest percent LILA population in NY, and `r ny.cty.shp.mj$NAMELSAD[which.min(ny.cty.shp.mj$PCT_LILA_POP)]` has the lowest.
+
+NC doesn't have a clear clustering pattern of LILA population distribution. In NM counties with higher percent LILA populations are more concentrated in the west. In NY counties with higher percent LILA populations are more concentrated in the north and southeast.
+
+##### Geogrpahic Distribution and Spatial Clustering
+```{r nghbmtrx, message = FALSE, warning = FALSE}
+#################################
+### Neighbors and Weight Matrices
+##################################
+## Create Queen case neighbors for counties in NC, NM, and NY
+# North Carolina
+nc.cty.nb.queen <- poly2nb(nc.cty.shp.mj, 
+                           queen = TRUE)
+# New Mexico
+nm.cty.nb.queen <- poly2nb(nm.cty.shp.mj, 
+                           queen = TRUE)
+# New York
+ny.cty.nb.queen <- poly2nb(ny.cty.shp.mj, 
+                           queen = TRUE)
+
+## Convert neighbor object to weight matrix
+# North Carolina
+nc.cty.w.queen <-  nb2listw(nc.cty.nb.queen, 
+                            style = "B",         # B is binary (1,0)
+                            zero.policy = TRUE)  # Allow obs with 0 neighbors
+# New Mexico
+nm.cty.w.queen <-  nb2listw(nm.cty.nb.queen, 
+                            style = "B",         # B is binary (1,0)
+                            zero.policy = TRUE)  # Allow obs with 0 neighbors
+# New York
+ny.cty.w.queen <-  nb2listw(ny.cty.nb.queen, 
+                            style = "B",         # B is binary (1,0)
+                            zero.policy = TRUE)  # Allow obs with 0 neighbors
+```
+
+```{r moran, message = FALSE, warning = FALSE}
+###########################
+### Moran's I
+###########################
+#North Carolina
+nc.cty.moran <- moran.test(nc.cty.shp.mj$PCT_LILA_POP,       # Data we're analyzing
+                           nc.cty.w.queen,         # Sp weights matrix
+                           randomisation = TRUE,   # Compare to randomized values
+                           zero.policy = TRUE)  # Allow obs with 0 neighbors
+
+# New Mexico
+nm.cty.moran <- moran.test(nm.cty.shp.mj$PCT_LILA_POP,       # Data we're analyzing
+                           nm.cty.w.queen,         # Sp weights matrix
+                           randomisation = TRUE,   # Compare to randomized values
+                           zero.policy = TRUE)  # Allow obs with 0 neighbors
+
+# New York
+ny.cty.moran <- moran.test(ny.cty.shp.mj$PCT_LILA_POP,       # Data we're analyzing
+                           ny.cty.w.queen,         # Sp weights matrix
+                           randomisation = TRUE,   # Compare to randomized values
+                           zero.policy = TRUE)  # Allow obs with 0 neighbors
+
+## Summary
+nc.cty.moran
+nm.cty.moran
+ny.cty.moran
+```
+
+The Moran’s I statistics for NC, NM, and NY are 0.034, 0.127, and 0.237, respectively. Since a positive Moran’s I means that the distribution tends towards clustering, the county level distribution of percent LILA population is clustered but to a low degree. The p-values for NC, NM, and NY are 0.219, 0.056, and 7.379e-4, respectively. The low p-values for NM and NY mean that the results in those states are statistically significant, while NC's results are not.
+
+```{r lisa, message = FALSE, warning = FALSE}
+#########################
+# LISA -- Local Moran's I
+#########################
+# North Carolina
+nc.cty.lisa <- localmoran(nc.cty.shp.mj$PCT_LILA_POP,        # The column in your sp data 
+                          nc.cty.w.queen,          # Weights object
+                          zero.policy = TRUE) %>%  # Best to keep TRUE for LISA
+  as.data.frame()  # Make result into data frame
+
+# New Mexico
+nm.cty.lisa <- localmoran(nm.cty.shp.mj$PCT_LILA_POP,        # The column in your sp data 
+                          nm.cty.w.queen,          # Weights object
+                          zero.policy = TRUE) %>%  # Best to keep TRUE for LISA
+  as.data.frame()  # Make result into data frame
+
+# New York
+ny.cty.lisa <- localmoran(ny.cty.shp.mj$PCT_LILA_POP,        # The column in your sp data 
+                          ny.cty.w.queen,          # Weights object
+                          zero.policy = TRUE) %>%  # Best to keep TRUE for LISA
+  as.data.frame()  # Make result into data frame
+
+### To get "nice" LISA categories for mapping
+### takes a bit of work in R, unfortunately
+
+# North Carolina
+      # Scale the input data to deviation from mean
+      nc.cDV <- nc.cty.shp.mj$PCT_LILA_POP - mean(nc.cty.shp.mj$PCT_LILA_POP) 
+      # Get spatial lag values for each observation
+      # These are the neighbors' values!
+      nc.lagDV <- lag.listw(nc.cty.w.queen, nc.cty.shp.mj$PCT_LILA_POP)
+      # Scale the lag values to deviation from mean
+      nc.clagDV <- nc.lagDV - mean(nc.lagDV, na.rm = TRUE)
+      # Add holder column with all 0s
+      nc.cty.lisa$Cat <- rep("0", nrow(nc.cty.lisa))
+      # This simply adds a label based on the values
+      nc.cty.lisa$Cat[which(nc.cDV > 0 & nc.clagDV > 0 &  nc.cty.lisa[,5] < 0.05)] <- "HH" 
+      nc.cty.lisa$Cat[which(nc.cDV < 0 & nc.clagDV < 0 &  nc.cty.lisa[,5] < 0.05)] <- "LL"      
+      nc.cty.lisa$Cat[which(nc.cDV < 0 & nc.clagDV > 0 &  nc.cty.lisa[,5] < 0.05)] <- "LH"
+      nc.cty.lisa$Cat[which(nc.cDV > 0 & nc.clagDV < 0 &  nc.cty.lisa[,5] < 0.05)] <- "HL"
+      ## Quick SUMMARY of LISA output
+      table(nc.cty.lisa$Cat)
+      ## Add LISA category column to the spatial data
+      ## for mapping!
+      nc.cty.shp.mj$LISACAT <-  nc.cty.lisa$Cat
+
+# New Mexico
+      # Scale the input data to deviation from mean
+      nm.cDV <- nm.cty.shp.mj$PCT_LILA_POP - mean(nm.cty.shp.mj$PCT_LILA_POP) 
+      # Get spatial lag values for each observation
+      # These are the neighbors' values!
+      nm.lagDV <- lag.listw(nm.cty.w.queen, nm.cty.shp.mj$PCT_LILA_POP)
+      # Scale the lag values to deviation from mean
+      nm.clagDV <- nm.lagDV - mean(nm.lagDV, na.rm = TRUE)
+      # Add holder column with all 0s
+      nm.cty.lisa$Cat <- rep("0", nrow(nm.cty.lisa))
+      # This simply adds a label based on the values
+      nm.cty.lisa$Cat[which(nm.cDV > 0 & nm.clagDV > 0 &  nm.cty.lisa[,5] < 0.05)] <- "HH" 
+      nm.cty.lisa$Cat[which(nm.cDV < 0 & nm.clagDV < 0 &  nm.cty.lisa[,5] < 0.05)] <- "LL"      
+      nm.cty.lisa$Cat[which(nm.cDV < 0 & nm.clagDV > 0 &  nm.cty.lisa[,5] < 0.05)] <- "LH"
+      nm.cty.lisa$Cat[which(nm.cDV > 0 & nm.clagDV < 0 &  nm.cty.lisa[,5] < 0.05)] <- "HL"
+      ## Quick SUMMARY of LISA output
+      table(nm.cty.lisa$Cat)
+      ## Add LISA category column to the spatial data
+      ## for mapping!
+      nm.cty.shp.mj$LISACAT <-  nm.cty.lisa$Cat
+# New York
+# Scale the input data to deviation from mean
+      ny.cDV <- ny.cty.shp.mj$PCT_LILA_POP - mean(ny.cty.shp.mj$PCT_LILA_POP) 
+      # Get spatial lag values for each observation
+      # These are the neighbors' values!
+      ny.lagDV <- lag.listw(ny.cty.w.queen, ny.cty.shp.mj$PCT_LILA_POP)
+      # Scale the lag values to deviation from mean
+      ny.clagDV <- ny.lagDV - mean(ny.lagDV, na.rm = TRUE)
+      # Add holder column with all 0s
+      ny.cty.lisa$Cat <- rep("0", nrow(ny.cty.lisa))
+      # This simply adds a label based on the values
+      ny.cty.lisa$Cat[which(ny.cDV > 0 & ny.clagDV > 0 &  ny.cty.lisa[,5] < 0.05)] <- "HH" 
+      ny.cty.lisa$Cat[which(ny.cDV < 0 & ny.clagDV < 0 &  ny.cty.lisa[,5] < 0.05)] <- "LL"      
+      ny.cty.lisa$Cat[which(ny.cDV < 0 & ny.clagDV > 0 &  ny.cty.lisa[,5] < 0.05)] <- "LH"
+      ny.cty.lisa$Cat[which(ny.cDV > 0 & ny.clagDV < 0 &  ny.cty.lisa[,5] < 0.05)] <- "HL"
+      ## Quick SUMMARY of LISA output
+      table(ny.cty.lisa$Cat)
+      ## Add LISA category column to the spatial data
+      ## for mapping!
+      ny.cty.shp.mj$LISACAT <-  ny.cty.lisa$Cat
+```
+
+Of NC's 98 counties with a percent LILA population value, 94 showed no evidence of spatial clustering, 3 were in High-High clusters and 1 was a Low-High outlier.
+
+Of NM's 33 counties with a percent LILA population value, 31 showed no evidence of spatial clustering, and there was 1 High-High and Low-Low cluster each.
+
+Of NY's 62 counties with a percent LILA population value, 53 showed no evidence of spatial clustering, 3 were in High-High clusters, 2 were Low-High outliers, and 4 were in Low-Low clusters.
+
+```{r lisamap, message = FALSE, warning = FALSE}
+### Plot LISA and Choropleth Maps
+tmap_mode("view")
+      
+# LISA maps
+# North Carolina
+nc.lisa.tmap <- tm_shape(nc.cty.shp.mj) + 
+  tm_polygons("LISACAT", 
+              title = "NC: LISA Category",
+              style = "cat", 
+              palette = c("grey", 
+                          "red",
+                          "lightblue",
+                          "blue"), 
+              border.col = "Black", 
+              border.alpha = 0.25) +
+  tm_layout(legend.outside = TRUE)
+
+# New Mexico
+nm.lisa.tmap <- tm_shape(nm.cty.shp.mj) + 
+  tm_polygons("LISACAT", 
+              title = "NM: LISA Category",
+              style = "cat", 
+              palette = c("grey", 
+                          "red",
+                          "lightblue",
+                          "blue"), 
+              border.col = "Black", 
+              border.alpha = 0.25) +
+  tm_layout(legend.outside = TRUE)
+
+# New York
+ny.lisa.tmap <- tm_shape(ny.cty.shp.mj) + 
+  tm_polygons("LISACAT", 
+              title = "NY: LISA Category",
+              style = "cat", 
+              palette = c("grey", 
+                          "red",
+                          "lightblue",
+                          "blue"), 
+              border.col = "Black", 
+              border.alpha = 0.25) +
+  tm_layout(legend.outside = TRUE)
+
+# Arrange and Display with original LILA pop in each county choropleth
+tmap_arrange(nc.lila.pop.map, 
+             nc.lisa.tmap,
+             ncol = 2,
+             sync = TRUE) 
+
+tmap_arrange(nm.lila.pop.map, 
+             nm.lisa.tmap,
+             ncol = 2,
+             sync = TRUE) 
+
+tmap_arrange(ny.lila.pop.map, 
+             ny.lisa.tmap,
+             ncol = 2,
+             sync = TRUE) 
+```
+
+##### Research Question and Analysis
+My Research Question: What does LILA population distribution look like across the state with the highest LILA population, the state with the lowest LILA population, and NC? And how does the geographic distribution of CSAs relate to these LILA population distributions?
+
+To answer my research question I will create maps of the percent LILA population distribution and the SNAP-accepting vs. non-accepting CSAs.
+
+```{r rqa, message = FALSE, warning = FALSE}
+# Map of SNAP vs. Non-SNAP accepting CSAs in NC, NM, and NY
+nc.csa.snap.map <- tm_shape(nc.cty.shp.mj) +
+                      tm_basemap("Esri.WorldTopoMap") +
+                      tm_polygons("PCT_LILA_POP",
+                                title =  "LILA Population and CSAs",
+                                style = "jenks", 
+                                palette = "Purples",
+                                lwd = 0.25,
+                                border.col = "gray40",
+                                border.alpha = 0.5,
+                                id = "NAME",                
+                                popup.vars = c("LILA POP(%)" = "PCT_LILA_POP")) +
+                      tm_shape(csa.nc) +
+                      tm_dots(col = "AccptdPmnt_SNAP",
+                              size = 0.05, 
+                              title = "SNAP Accepting CSAs", 
+                              labels = c("No SNAP", "SNAP")) +
+                      tm_view(view.legend.position = c("right", "top"))
+
+nm.csa.snap.map <- tm_shape(nm.cty.shp.mj) +
+                      tm_basemap("Esri.WorldTopoMap") +
+                      tm_polygons("PCT_LILA_POP",
+                                title =  "LILA Population and CSAs",
+                                style = "jenks", 
+                                palette = "Purples",
+                                lwd = 0.25,
+                                border.col = "gray40",
+                                border.alpha = 0.5,
+                                id = "NAME",                
+                                popup.vars = c("LILA POP(%)" = "PCT_LILA_POP")) +
+                      tm_shape(csa.nm) +
+                      tm_dots(col = "AccptdPmnt_SNAP",
+                              size = 0.05, 
+                              title = "SNAP Accepting CSAs", 
+                              labels = c("No SNAP", "SNAP")) +
+                      tm_view(view.legend.position = c("right", "top"))
+
+ny.csa.snap.map <- tm_shape(ny.cty.shp.mj) +
+                      tm_basemap("Esri.WorldTopoMap") +
+                      tm_polygons("PCT_LILA_POP",
+                                title =  "LILA Population and CSAs",
+                                style = "jenks", 
+                                palette = "Purples",
+                                lwd = 0.25,
+                                border.col = "gray40",
+                                border.alpha = 0.5,
+                                id = "NAME",                
+                                popup.vars = c("LILA POP(%)" = "PCT_LILA_POP")) +
+                      tm_shape(csa.ny) +
+                      tm_dots(col = "AccptdPmnt_SNAP",
+                              size = 0.05, 
+                              title = "SNAP Accepting CSAs", 
+                              labels = c("No SNAP", "SNAP")) +
+                      tm_view(view.legend.position = c("right", "top"))
+
+# Arrange Maps
+tmap_arrange(nc.csa.snap.map,
+            nm.csa.snap.map,
+            ny.csa.snap.map,
+            nrow = 3)
+```
+The above maps show that of the `r nrow(csa.nc)` CSAs in NC only `r length(which(csa.nc$AccptdPmnt_SNAP == "1"))` accept SNAP, of the `r nrow(csa.nm)` CSAs in NM only `r length(which(csa.nm$AccptdPmnt_SNAP == "1"))` accept SNAP, and of the `r nrow(csa.ny)` CSAs in NY only `r length(which(csa.ny$AccptdPmnt_SNAP == "1"))` accept SNAP.
+
+Except for one CSA in NY, on all of the maps, the areas with the highest percent LILA populations have no CSAs. And that single CSA in NY does not accept SNAP. NM, which has the highest overall percent LILA population, also has the fewest number of CSAs. And even though NC has many more CSAs than NM, like NM, only 1 of them accepts SNAP.
+
+***
+
+### Conclusion
+
+My project looked at LILA population distribution across North Carolina, New Mexico, and New York counties, and how the geographic distribution of CSAs in these states related to the LILA population distribution. I used histograms and maps, including choropleths, to visualize these distributions and Moran's I and LISA to analyze the spatial correlation of the percent LILA population distribution.
+
+NM has the highest percent LILA population but the lowest number of CSAs, while NY has the lowest percent LILA population and the highest number of CSAs. there were almost no CSAs located in the highest percent LILA population counties and definitely no SNAP accepting CSAs in those counties.
+
+If CSAs are to be a useful tool in combating food access in LILA communities, more SNAP accepting CSAs need to be formed in the counties with the highest percent LILA populations.
+
+***
+
+##### Document Statistics
+```{r dstats, echo = FALSE, message = FALSE, warning = FALSE}
+wordcountaddin:::text_stats() %>%
+  kable_styling(bootstrap_options = c("striped",
+                                      "hover",
+                                      "condensed",
+                                      "responsive"),
+                full_width = F)
+```
