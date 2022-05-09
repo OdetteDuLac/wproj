@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projections</title>
+</head>
+<body>
+    <h1>In this project I learned how to display images in different projections</h1>  
+    <p>I used the Natural Earth dataset to create the base map, and then using the Indicatrix plugin, I added an indicatrix layer to the basemap.
+        Finally, I created maps by changing the CRS (Coordinate Reference System) in QGIS and trying out different world projections.
+    </p>
+    
+    <h2>WGS84 Projection</h2>
+    <h3>Standard projection used for GPS, Google Maps, and other webmaps.
+        Based on the indicatrix, this projection is distorted in both shape and size
+        as the distance from the equator increases.
+    </h3>
+    <a href=".//maps/4326.png">
+    <img src=".//maps/4326.png" alt="WGS84" width='500px'>
+    </a>
+    <h2>Aitoff Projection</h2>
+    <h3>Based on the indicatrix, this projection distorts size and shape the farther away
+        a location is from the prime meridian or the equator.
+    </h3>
+    <a href=".//maps/54043.png">
+    <img src=".//maps/54043.png" alt="Aitoff" width='500px'>
+    </a>
+    <h2>Pseudo Mercator Projection</h2>
+    <h3>Pseudo Mercator Projection is similar to the 
+        Mercator projection, except that the projection is done using a sphere instead of an ellipsoid. It preserves shape
+        throughout the map; however size is distorted the farther a location is from the equator.
+    </h3>
+    <a href="./maps/3857_Pseudo_Mercator.png">
+    <img src="./maps/3857_Pseudo_Mercator.png" alt="Pseudo Mercator" width='500px'>
+    </a>
+    <h2>Sphere Winkel I Projection</h2>
+    <h3>This projeciton compares in some ways to the Aitoff projection. However, it's distortion does not appear to be as 
+        dramatic as the distortion in the Aitoff projection because while the Sphere Winkel I still distorts size the farther away 
+        a location is from the equator or the prime meridian, it does not distort shape in a noticable way.
+    </h3>
+    <a href="./maps/53018_Sphere_Winkel_I.png">
+    <img src="./maps/53018_Sphere_Winkel_I.png" alt="Sphere Winkel I" width='500px'>
+    </a> 
+    <h2>Cylindrical Equal Area World Projection</h2>
+    <h3>This projection is interesting because it appears to preserve both shape and size in the central regions of the map,
+        but a dramatic distortion is both shape and size is observable in the northernmost and southernmost regions.
+    </h3>
+    <a href="./maps/54034_World_Cylin_Equ_Are.png">
+    <img src="./maps/54034_World_Cylin_Equ_Are.png" alt="Cylindrical Equal Area" width='500px'>
+    </a> 
+    <h2>World Equidistant Conic Projection</h2>
+    <h3>This projection preserves both size and shape in the areas surrounding the North Pole; however, as locations near
+        the South Pole both size and shape are greatly changed.
+    </h3>
+    <a href="./maps/54027_World_Equ_Dist_Conic.png">
+    <img src="./maps/54027_World_Equ_Dist_Conic.png" alt="Equidistant Conic" width='500px'>
+    </a>
+    <h2>North Pole Azimuthal Equidistant Projection</h2>
+    <h3>This projection does not differ too gratly from the World Equidistant Conic Projection because based on the indicatrix,
+        the least distorted areas are still those surrounding the North Pole. Nevertheless, the shape distortion near the South Pole in this azimuthal projection
+        is even more pronounced than in the aforementioned conic projeciton.
+    </h3>
+    <a href="./maps/102016_North_Pole_Azim_Equ_Dist.png">
+    <img src="./maps/102016_North_Pole_Azim_Equ_Dist.png" alt="North Pole Azimuthal" width='500px'>
+    </a>
+    <h2>World Polyconic Projection</h2>
+    <h3>In this projection shape and size are best preserved near the equator and the prime meridian; however, interestingly
+        this projeciton appears to preserve the size and shape of points surrounding both poles that are closest to the prime meridian. 
+    </h3>
+    <a href="./maps/54021_World_Polyconic.png">
+    <img src="./maps/54021_World_Polyconic.png" alt="Polyconic" width='500px'>
+    </a>
+    <h2>Sphere Two Point Equidistant Projection</h2>
+    <h3>Based on the indicatrix, it appears that this projection preserves shape for the most part except maybe in the easternmost, 
+        westernmost, and southernmost areas. Size on the other hand in distorted most in areas farthest form the prime meridian and the equator, although size 
+        appears to be more uniform north of the equator than south of the equator, meaning the North Pole is less distorted than the South Pole.</h3>
+    <a href="./maps/53031_Sphere_TwoPt_Equ_Dist.png">
+    <img src="./maps/53031_Sphere_TwoPt_Equ_Dist.png" alt="Sphere Two Point Equidistant" width='500px'>
+    </a>
+    <h2 style="color:red"></u></h2>
+    <h3></h3>
+    <p></p>
+    <h2>Data used for this project</h2>
+    <a href="https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip"> Download Natrual Earth 1:10m Cultural Vector </a>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+"type": "FeatureCollection",
+"name": "1820_provCap_not3km",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::2333" } },
+"features": [
+{ "type": "Feature", "properties": { "NAME_PY": "Zhili", "X_COORD": 116.368004, "Y_COORD": 39.931427, "GEO_ID": 25036 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 19958971.957835119217634, 4435739.792049801908433 ] ] } },
+{ "type": "Feature", "properties": { "NAME_PY": "Heilongjiang", "X_COORD": 123.963844, "Y_COORD": 47.344997, "GEO_ID": 25025 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 20478874.147465124726295, 5327723.557577162049711 ] ] } },
+{ "type": "Feature", "properties": { "NAME_PY": "Henan", "X_COORD": 114.34333, "Y_COORD": 34.785477, "GEO_ID": 25037 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 19806062.121825065463781, 3855893.676600168459117 ] ] } },
+{ "type": "Feature", "properties": { "NAME_PY": "Shaanxi", "X_COORD": 108.944206, "Y_COORD": 34.266605, "GEO_ID": 25029 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 19310656.232110232114792, 3795149.390648004598916 ] ] } },
+{ "type": "Feature", "properties": { "NAME_PY": "Shandong", "X_COORD": 117.001488, "Y_COORD": 36.650131, "GEO_ID": 25045 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 20036923.990251369774342, 4074507.600815308280289 ] ] } },
+{ "type": "Feature", "properties": { "NAME_PY": "Shengjing", "X_COORD": 123.419884, "Y_COORD": 41.78825, "GEO_ID": 25023 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 20533270.30675008520484, 4703374.297417205758393 ] ] } },
+{ "type": "Feature", "properties": { "NAME_PY": "Sichuan", "X_COORD": 104.077995, "Y_COORD": 30.650385, "GEO_ID": 25041 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 18835738.981856491416693, 3412733.696420708205551 ] ] } },
+{ "type": "Feature", "properties": { "NAME_PY": "Xinjiang", "X_COORD": 81.043823, "Y_COORD": 43.937248, "GEO_ID": 25022 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 17095273.216240953654051, 5324403.182101766578853 ] ] } },
+{ "type": "Feature", "properties": { "NAME_PY": "Xizang", "X_COORD": 91.164253, "Y_COORD": 29.707382, "GEO_ID": 25020 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 17560998.432297572493553, 3458356.077211739029735 ] ] } },
+{ "type": "Feature", "properties": { "NAME_PY": "Yunnan", "X_COORD": 102.71035, "Y_COORD": 25.045914, "GEO_ID": 25024 }, "geometry": { "type": "MultiPoint", "coordinates": [ [ 18661582.028295457363129, 2796938.577071082778275 ] ] } }
+]
+}

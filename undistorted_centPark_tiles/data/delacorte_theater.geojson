@@ -1,0 +1,7 @@
+var delaTheat = {
+"type": "FeatureCollection",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "id": 1, "descrip": "delacorte theater" }, "geometry": { "type": "Point", "coordinates": [ -73.96875512864278, 40.78026683760332 ] } }
+]
+}

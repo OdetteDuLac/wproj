@@ -1,0 +1,7 @@
+var aliceWonder = {
+"type": "FeatureCollection",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "id": 1, "descrip": "alice in wonderland sculpture" }, "geometry": { "type": "Point", "coordinates": [ -73.96650778841362, 40.77504873288098 ] } }
+]
+}

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vermont Choropleths</title>
+</head>
+<body>
+<h1>Vermont Census Data Ratio Choropleths </h1>
+<h3>This map was created with US Census data on the number of business firms present in Vermont between 1978 and 2018. In the previous homework I used the raw count of firms per Vermont county in 2018. However, these maps use the the ratio of the number of firms in each Vermont county to the total number of firms Vermont in 2018
+    to make any comparisons of the data more accurate. Each ratio of firms per county to total firms reflects the number of firms in each county per 1000 firms.</h3>
+<!-- Your maps goes here -->
+<h2>Quantile Categories</h2>
+<a href="./Data/vermont_firmsRatio_Quant.png">
+    <img src="./Data/vermont_firmsRatio_Quant.png" width="650px">
+    </a>
+<p>The quantile categories do a pretty good job of showing the range in amount of firms across the different counties. But the margins withing different quantiles is pretty large. Especially in the last group of 97-267. 
+    Chittenden, Washington, and Rutland counties could have a vastly different number of firms, and 97 firms versus 150 firms versus 267 firms is a pretty large difference.
+</p>
+<h2>Natural Break Categories</h2>
+ <a href="./Data/vermont_firmsRatio_naturalBreaks.png">
+    <img src="./Data/vermont_firmsRatio_naturalBreaks.png" width="650px">
+    </a>
+<p>The natural breaks did a the best job in classifying the data in this dataset. With smaller margins within each grouping it is easier to compare the ratios of firms in each county. To compare with the Quantile choropleth, Chittenden county is in it's own group without Washington and Rutland counties.
+    This map highlights the counties with the most number of firms and least number of firms very clearly and gives a pretty good representation of the variation in the middle. However, groups with larger margins like the 8-50 firm subset, do tend to have a larger amount of counties.
+</p>
+<h2>Pretty Break Categories</h2>
+<a href="./Data/vermont_firmsRatio_PrettyBreaks.png">
+    <img src="./Data/vermont_firmsRatio_PrettyBreaks.png" width="650px">
+    </a>
+<p>Pretty Breaks did the worst job in showing the range of data. A lot of counties fall into the first group, but it's obvious from the first two maps that there is a lot of variation within the 5-50 firm subset of counties. Pretty Breaks does highlight the county with the most firms, Chittenden County, 
+    and provides further insight into how much higher of a ratio of firms are located within that county compared to the other counties, which the previous two maps showed also have a large ratio of firms.</p>
+<!-- Link to your shapefile in Github and you CSV -->
+<h2>Data used for this project</h2>
+    <a href="./Data/vermont_establishment_data_cleaned2.csv"> CSV dataset </a>
+    <p></p>
+    <a href="./Data/vermont_counties.geojson"> Link to shapefile </a>
+
+</body>
+</html>

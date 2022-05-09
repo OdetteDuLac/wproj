@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><MD_Metadata xmlns:gts="http://www.isotc211.org/2005/gts" xmlns:gco="http://www.isotc211.org/2005/gco" xmlns:xalan="http://xml.apache.org/xalan" xmlns:srv="http://www.isotc211.org/2005/srv" xmlns:gmx="http://www.isotc211.org/2005/gmx" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml" xmlns="http://www.isotc211.org/2005/gmd">
+    <characterSet>
+        <MD_CharacterSetCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_CharacterSetCode" codeListValue="utf8" codeSpace="ISOTC211/19115">utf8</MD_CharacterSetCode>
+    </characterSet>
+    <hierarchyLevel>
+        <MD_ScopeCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_ScopeCode" codeListValue="dataset" codeSpace="ISOTC211/19115">dataset</MD_ScopeCode>
+    </hierarchyLevel>
+    <hierarchyLevelName>
+        <gco:CharacterString>dataset</gco:CharacterString>
+    </hierarchyLevelName>
+    <contact gco:nilReason="missing"/>
+    <dateStamp gco:nilReason="missing"/>
+    <metadataStandardName>
+        <gco:CharacterString>ISO 19139 Geographic Information - Metadata - Implementation Specification</gco:CharacterString>
+    </metadataStandardName>
+    <metadataStandardVersion>
+        <gco:CharacterString>2007</gco:CharacterString>
+    </metadataStandardVersion>
+    <identificationInfo>
+        <MD_DataIdentification>
+            <citation gco:nilReason="missing"/>
+            <abstract gco:nilReason="missing"/>
+            <purpose>
+                <gco:CharacterString>Bus stops on the GoRaleigh system.</gco:CharacterString>
+            </purpose>
+            <descriptiveKeywords>
+                <MD_Keywords>
+                    <keyword>
+                        <gco:CharacterString/>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>transportation</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>shelters</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>stops</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>bus</gco:CharacterString>
+                    </keyword>
+                </MD_Keywords>
+            </descriptiveKeywords>
+            <descriptiveKeywords>
+                <MD_Keywords>
+                    <keyword>
+                        <gco:CharacterString/>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>transportation</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>shelters</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>stops</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>bus</gco:CharacterString>
+                    </keyword>
+                </MD_Keywords>
+            </descriptiveKeywords>
+            <descriptiveKeywords>
+                <MD_Keywords>
+                    <keyword>
+                        <gco:CharacterString/>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>transportation</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>shelters</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>stops</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>bus</gco:CharacterString>
+                    </keyword>
+                </MD_Keywords>
+            </descriptiveKeywords>
+            <descriptiveKeywords>
+                <MD_Keywords>
+                    <keyword>
+                        <gco:CharacterString/>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>transportation</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>shelters</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>stops</gco:CharacterString>
+                    </keyword>
+                    <keyword>
+                        <gco:CharacterString>bus</gco:CharacterString>
+                    </keyword>
+                </MD_Keywords>
+            </descriptiveKeywords>
+            <resourceConstraints>
+                <MD_Constraints>
+                    <useLimitation>
+                        <gco:CharacterString>Open Raleigh Data PolicyBy using data made available through this site, the user agrees to all the conditions stated in the following paragraphs as well as the terms and conditions described under the City of Raleigh Open Data Privacy Policy. THE CITY OF RALEIGH MAKES NO REPRESENTATIONS OR WARRANTY AS TO THE COMPLETENESS, ACCURACY, TIMELINESS, OR CONTENT OF ANY DATA MADE AVAILABLE THROUGH THIS SITE. THE CITY OF RALEIGH EXPRESSLY DISCLAIMS ALL WARRANTIES, WHETHER EXPRESS OR IMPLIED, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE. While the City will take care to refrain from changes to the data format or schemas, there may be an occasional need to change the data format or schema as the data is modified and/or updates or addendums to the data are completed. It is understood that the information contained in the site is being used at one's own risk.Right to Modify and/or Discontinue FeedsThe City of Raleigh reserves the right to modify and/or discontinue providing any or all of the data feeds at any time and to require the termination of any and all displaying, distributing or otherwise using any or all of the data for any reason including, without limitation, violation of any provision of these Terms of Use.Terms of Use and Moderation DisclaimerCommunications made through data.raleighnc.gov will in no way constitute a legal or official notice to the City of Raleigh or its departments or any official or employee of the City of Raleigh for any purpose. Use of the data.raleighnc.gov website constitutes acceptance of this policy. Any information posted here may be considered a public record and may be subject to disclosure to third parties. The City reserves the right to amend these terms of service at any time and without further notice.</gco:CharacterString>
+                    </useLimitation>
+                </MD_Constraints>
+            </resourceConstraints>
+            <language gco:nilReason="missing"/>
+            <characterSet>
+                <MD_CharacterSetCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_CharacterSetCode" codeListValue="utf8" codeSpace="ISOTC211/19115">utf8</MD_CharacterSetCode>
+            </characterSet>
+        </MD_DataIdentification>
+    </identificationInfo>
+</MD_Metadata>
