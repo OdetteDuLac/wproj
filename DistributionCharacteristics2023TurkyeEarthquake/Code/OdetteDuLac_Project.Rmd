@@ -1,0 +1,277 @@
+---
+title: "Distribution and Characteristics of the 2023 Turkye Earthquake"
+author: "Safia Bamba, Kamil Orozco, and Amanda Sajewski"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+    code_folding: hide
+    toc: true
+    toc_float:
+      collapsed: true
+    theme: lumen
+---
+
+\newpage
+\tableofcontents 
+\newpage
+\listoftables 
+\newpage
+\listoffigures 
+\newpage
+
+```{r setup1, echo=FALSE, message=FALSE, warning=FALSE, error = FALSE}
+require(knitr)
+require(kfigr)
+```
+
+```{r setup2, include=FALSE, message=FALSE, echo=FALSE, warning=FALSE}
+# Set your working directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# Load your packages
+# general
+library(tidyverse)
+library(here)
+library(lubridate)
+library(httr)
+library(readxl)
+# spatial
+library(sf)
+library(gstat)
+library(leaflet)
+library(mapview)
+library(raster)
+# graphics
+library(ggplot2)
+library(ggthemes)
+# GLM
+library(agricolae)
+library(zoo)
+
+# Set your ggplot theme
+theme_set(theme_minimal())
+```
+
+# Setup and Data
+```{r dataload1, message=FALSE, warning=FALSE, error = FALSE, echo=FALSE}
+## administrative boundaries of Turkiye
+tur.adm0 <- st_read(here("Data/Shapefiles/geoBoundaries-TUR-ADM0-all/geoBoundaries-TUR-ADM0_simplified.shp"))
+tur.adm1 <- st_read(here("Data/Shapefiles/geoBoundaries-TUR-ADM1-all/geoBoundaries-TUR-ADM1_simplified.shp"))
+tur.adm2 <- st_read(here("Data/Shapefiles/geoBoundaries-TUR-ADM2-all/geoBoundaries-TUR-ADM2_simplified.shp"))
+```
+
+```{r dataload2, message=FALSE, warning=FALSE, error = FALSE, echo=FALSE}
+### earthquake data from USGS Earthquake Catalog
+# create bounding box of Turkiye to input coordinates into USGS EC API
+tur.bbox <- st_bbox(tur.adm0)
+# create string of bounding box coordinates for API url
+rectangle <- paste0("minlatitude=", tur.bbox[1], 
+                    "&minlongitude=", tur.bbox[2], 
+                    "&maxlatitude=", tur.bbox[3], 
+                    "&maxlongitude=", tur.bbox[4])
+# USGS Earthquake Catalog API query; February 5, 2023 to March 5, 2023; 
+# minimum magnitude of 0, want all earthquakes during this period csv format 
+tur.USGS.EQC <- GET(paste0("https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=2023-02-05&endtime=2023-03-05&", rectangle, "&minmagnitude=0.0"))
+
+# parse contents of query and create data frame
+EQC.data <- content(tur.USGS.EQC, "text")
+EQC.data.df <- read.csv(text = EQC.data)
+
+# save earthquake data to csv; files can be overwritten when .Rmd is run
+write.csv(EQC.data.df, row.names = FALSE, file = here("Data/Tabular/TUR_USGS_EQC_FebMar2023.csv"))
+```
+
+```{r dataload3, message=FALSE, warning=FALSE, error = FALSE, echo=FALSE}
+### destroyed building data from UN OCHA HDX portal; data set updated daily
+# download, unzip, and read
+url <- "https://s3.us-east-1.amazonaws.com/exports-stage.hotosm.org/hotosm_tur_destroyed_buildings_polygons_csv_csv_uid_d3ce51f1-f046-4df9-b0df-2059159c0ece.zip"
+temp <- tempfile()
+download.file(url, temp)
+buildings <- read.csv(unz(temp, "hotosm_tur_destroyed_buildings_polygons_csv.csv"))
+unlink(temp)
+
+# save dataset; files can be overwritten when .Rmd is run
+write.csv(buildings, row.names = FALSE, file = here("Data/Tabular/TUR_HDX_destroyedBuildings.csv"))
+
+```
+
+```{r dataload4, message=FALSE, warning=FALSE, error = FALSE, echo=FALSE}
+### twitter earthquake communications data from UN OCHA HDX portal; data set updated monthly
+# download data
+# download.file("https://data.humdata.org/dataset/a22adc4d-4ae3-4252-a9ba-5d7278f17282/resource/ae7a53d1-7e09-4eaa-9790-13ddcb140e62/download/help_requests_twitter.xlsx",  here("Data/Tabular/TUR_HDX_twitterHelp.xlsx"))
+# 
+# download.file("https://data.humdata.org/dataset/a22adc4d-4ae3-4252-a9ba-5d7278f17282/resource/ed7a25db-e2fb-402a-a433-e3da0b62d3c4/download/shelter_requests_twitter.xlsx",  here("Data/Tabular/TUR_HDX_twitterShelter.xlsx"))
+# 
+# download.file("https://data.humdata.org/dataset/a22adc4d-4ae3-4252-a9ba-5d7278f17282/resource/1e6539f1-d7c0-40d2-bfe9-09f4dd0485c7/download/missing_people_reports_twitter.xlsx",  here("Data/Tabular/TUR_HDX_twitterMissingPeople.xlsx"))
+# 
+# download.file("https://data.humdata.org/dataset/a22adc4d-4ae3-4252-a9ba-5d7278f17282/resource/3f8c3277-cd31-4952-884f-c8ebe2188a00/download/damage_images_twitter.xlsx",  here("Data/Tabular/TUR_HDX_twitterDamageImages.xlsx"))
+
+# read in data
+twt.help <- as.data.frame(read_excel(here("Data/Tabular/TUR_HDX_twitterHelp.xlsx")))
+twt.shelter <- as.data.frame(read_excel(here("Data/Tabular/TUR_HDX_twitterShelter.xlsx")))
+twt.missingPeople <- as.data.frame(read_excel( here("Data/Tabular/TUR_HDX_twitterMissingPeople.xlsx")))
+twt.damageImages <- as.data.frame(read_excel(here("Data/Tabular/TUR_HDX_twitterDamageImages.xlsx")))
+```
+
+# Rationale and Research Questions
+On February 6, 2023 a 7.8 magnitude earthquake hit northwest section Gaziantep, it's epicenter near the town of Nurdağı.Less than 12 hours later another 7.5 magnitude earthquake the neighboring province of Kahramanmaraş. The earthquakes had severe damaging impacts in 11 provinces of southeast Türkiye as well as northwest Syria, including in the cities of Idlib and Aleppo, and their effects were felt as far away as Lebanon, Palestine, and Egypt. Strong aftershocks from the earthquakes lasted for more than a month (Kawoosa, 2023), leading to the continued destruction of buildings already damaged in the initial earthquakes. Some aftershocks are still occurring today.
+
+The earthquakes caused more than 55,000 people were killed and more than 130,000 people were injured across Türkiye and Syria as a result of the earthquakes, and tens of thousands of people are missing and millions displaced.
+
+To learn more about some of the impacts of the earthquake we decided to examine the distribution and characteristics of 2023 Türkiye-Syria earthquakes and their aftershocks within the borders of Türkiye to understand the relationship between earthquake magnitude and depth using GLMs and visually compares the occurrence of building destruction with these earthquake variables as well as the human response to the destruction, as represented by twitter activity.
+
+To conduct this analysis we used data from the USGS Earthquake Catalog on the earthquakes and data from the UN Office of Humanitarian Affairs' Humanitarian Data Exchange portal on building damage and twitter activity. We also used administrative boundary data from the geoBoundaries package created by the College of William and Mary's geoLab.
+
+### Research Questions:
+1. How is earthquake depth correlated to earthquake magnitude? 
+2. How are depth and magnitude related to destruction of buildings?
+3. What is the distribution of earthquake-related twitter activity?
+4. How does this distribution look in relation to the distribution of destroyed buildings? 
+
+\newpage
+
+# Dataset Information
+
+This project used four main datasets: Administrative Boundary Layers, Earthquake Data, Destroyed Buildings Data, and Twitter Activity Data. 
+
+The Administrative Boundary Layers were downloaded from the geoBoundaries dataset created by the geoLab at the College of William and Mary. Administrative boundaries for the country, province, and district level were downloaded and saved as shapefiles. 
+
+The Earthquake Data was downloaded from the US Geological Survey Earthquake Catalog using their API. It is saved in a csv format and is a point layer of earthquake data from February 5 to march 5, 2023. The dataset includes measures of depth, magnitude, time, latitude, and longitude as well as other statistics related to measuring and detection errors.
+
+The Destroyed Buildings Data was pulled from the UN Office of UN Office of Humanitarian Affairs' Humanitarian Data Exchange Portal. It is saved in a csv format and is a point layer of destroyed building data that is updated daily and curated using Open Street Map and Map Roulette. 
+
+The Twitter Activity Data was pulled from the UN Office of UN Office of Humanitarian Affairs' Humanitarian Data Exchange Portal. It is saved in a xlsx format and is tabular data aggregated from points to administrative level 2 (distric) polygons. It includes separate files of missing people reports, help requests, shelter requests, and damage reports shared through images.
+  
+Because of the very specific nature of the datasets and the spatial analysis conducted, the data did not require serious wrangling. Some datasets, such as the Earthquake dataset, were wrangled and processed to create new data and time columns using lubridate and sometimes datasets, such as the administrative boundary layers and the Earthquake dataset, were reprojected to allow for spatial analayes, such as interpolation.
+
+Table \@ref(tab:datasetInfo) shows a summary of the dataset information. 
+
+```{r datasetInfo, anchor="table", tab.cap="Dataset Summary", tab.align = "center"}
+# create data frame of data set information
+datasets <- c("Administrative Boundary Layers", "Earthquake Data", "Destroyed Buildings Data", "Twitter Activity Data")
+description <- c("polygons", "points", "points", "points aggregated to ADM 2 polygons")
+variables <- c("name; type (ADM level); geometry", "date/time; latitude; longitude; depth (km); magnitude; place; measures of error; measurement sources; ID", "source; damage_event; date; longigute; latitude", "district; population; frequency of images; frequency of tweets; impact score; impact category")
+information <- c("ADM 0, ADM 1, and ADM 2", "earthquakes Feb. 5-Mar. 5, 2023", "destroyed buildings", "help requests, shelter requests, missing people reports, damage reports (images)")
+projection <- c("4326", "4326", "4326", "NA")
+format <- c("shapefile", ".csv", ".csv", ".xlsx")
+sources <- c("geoBoundaries", "USGS Earthquake Catalog", "UN OCHA HDX", "UN OCHA HDX")
+
+datasets.df <- data.frame(datasets, description, variables, information, projection, format, sources)
+
+#Use the `kable` function to produce the table
+knitr::kable(datasets.df, caption = "Summary of Datasets", col.names = c("Name","Description", "Variables", "Information", "Original Projection", "Format", "Source"))
+```
+
+\newpage
+
+# Exploratory Analysis 
+
+The map below shows extent of Turkiye within which our analysis of the earthquake related data will take place. Moreover, the administrative boundaries for provinces and districts are shown with their labels. This will aid in situating the earthquake, damage, and twitter data within the affected 11 provinces and their relevant districts.
+
+```{r exploratoryMapsPlots1, anchor= "figure", fig.align="center", fig.cap="Turkiye Administrative Boundaries", message=FALSE, warning=FALSE}
+## Administrative Boundaries
+# plot and check administrative boundaries
+mapviewOptions(basemaps = "CartoDB.Positron")
+mapView(list(tur.adm0, tur.adm1, tur.adm2), 
+        col.regions = list("lightblue","lavender", "darkgreen"),
+        label = list(as.character(tur.adm0$shapeName), as.character(tur.adm1$shapeName), as.character(tur.adm2$shapeName)),
+        layer.name = list("Turkiye", "Turkiye Provinces", "Turkiye Districts"))
+```
+
+Figure \@ref(fig:exploratoryMapsPlots2) below illustrates the rough distribution of the earthquakes that occurred between February 5 and March 5, 2023. The earthquakes occurred in a large south to north swath from Hatay to the Black Sea region, with most of the earthquakes concentrating in the South, particularly near Hatay, Gaziantep, Şanlıurfa, and Kahramanmaraş.
+
+```{r exploratoryMapsPlots2, fig.align="center", fig.cap="Distirbution of Earthquake Points", message=FALSE, warning=FALSE, anchor="figure"}
+## Earthquake Data
+# preview data
+head(EQC.data.df)
+
+# plot earthquake points to see quick distribution
+ggplot()+
+  geom_sf(data = tur.adm0, fill = "azure", color = "darkgray") +
+  geom_point(data = EQC.data.df, aes(x=latitude, y=longitude), color = "darkred", size = 0.5) +
+  labs(title = "Turkiye Earthquakes Feb. 5-Mar. 5, 2023")
+```
+
+Figure \@ref(fig:exploratoryMapsPlots3) below illustrates the rough distribution of buildings destroyed as a result of the earthquakes. Unlike the distribution of the earthquakes that occurred in a large south to north swath, the destroyed buildings are largely concentrated around areas near the epicenters of the largest 7.8 and 7.5 magnitude earthquakes that occurred in Gaziantep and Kahramanmaraş, respectively. The destroyed buildings dataset contains 3277 points, but there appears to be very few on the map, likely due to the concentration of destroyed buildings at specific locations.
+
+```{r exploratoryMapsPlots3, fig.align="center", fig.cap="Distribution of Destroyed Building Points", message=FALSE, warning=FALSE, anchor="figure"}
+## Destroyed Building Data
+# dataset summary
+summary(buildings)
+# plot destroyed buildings points to see quick distribution
+ggplot()+
+  geom_sf(data = tur.adm0, fill = "azure", color = "darkgray") +
+  geom_point(data = buildings, aes(x=latitude, y=longitude), color = "darkorange3", size = 0.5) +
+  labs(title = "Turkiye: Buildings Destroyed in Earthquakes")
+```
+
+\newpage
+
+# Analysis
+```{r interpolation, message=FALSE, warning=FALSE, echo=FALSE}
+#########################
+### Spatial Interpolation
+#########################
+
+### create spatially interpolated raster surfaces for earthquake and damaged building data
+
+## Earthquake Data: Setup
+# maker= EQC df an sf object
+EQC.data.sf <- st_as_sf(EQC.data.df, coords = c("longitude", "latitude"), crs = 4326)
+# reproject to projected coordinate system from geographic; ESPG 23035; unit = meters
+EQC.data.sf.reproj <- st_transform(EQC.data.sf, crs = 23035)
+tur.adm0.reproj <- st_transform(tur.adm0, crs = 23035)
+tur.adm1.reproj <- st_transform(tur.adm1, crs = 23035)
+tur.adm2.reproj <- st_transform(tur.adm2, crs = 23035)
+# build blank raster at 10 km resolution; put in same crs as EQC data
+blank.rast <- raster(tur.adm0.reproj, res = 10000)
+
+
+## Earthquake Data: Depth
+# formula gstat object; idp = 2 is inverse distance weight interpolation to power of 2
+gs.depth <- gstat(formula = depth ~ 1, locations = EQC.data.sf.reproj, set=list(idp = 2))
+# interpolate to blank raster
+idw.depth <- interpolate (blank.rast, gs.depth, debug.level = 0)
+# final idw interpolated raster 
+idw.rast.depth <- mask(idw.depth, tur.adm0.reproj)
+
+## Earthquake Data: Magnitude
+# formula gstat object; idp = 2 is inverse distance weight interpolation to power of 2
+gs.mag <- gstat(formula = mag ~ 1, locations = EQC.data.sf.reproj, set=list(idp = 2))
+# interpolate to blank raster
+idw.mag <- interpolate (blank.rast, gs.mag, debug.level = 0)
+# final idw interpolated raster 
+idw.rast.mag <- mask(idw.mag, tur.adm0.reproj)
+
+# reproject buildings to projected coordinate system from geographic to visualize with rasters
+# ESPG 23035; unit = meters
+buildings.sf <- st_as_sf(buildings, coords = c("longitude", "latitude"), crs = 4326)
+buildings.sf.reproj <- st_transform(buildings.sf, crs = 23035)
+
+# write rasters
+writeRaster(idw.rast.depth, here("Data/Rasters/TUR_EQC_idw_depth.tif"), format = "GTiff", overwrite = TRUE)
+writeRaster(idw.rast.mag, here("Data/Rasters/TUR_EQC_idw_magnitude.tif"), format = "GTiff", overwrite = TRUE)
+
+# create rater dataframes for ggplot
+idw.depth.df <- as.data.frame(idw.rast.depth, xy=TRUE) %>% drop_na()
+idw.mag.df <- as.data.frame(idw.rast.mag, xy=TRUE) 
+```
+
+
+## Questions 1 and 2: How is earthquake depth correlated to earthquake magnitude? How are depth and magnitude related to destruction of buildings?
+
+## Questions 3 and 4: What is the distribution of earthquake-related twitter activity? How does this distribution look in relation to the distribution of destroyed buildings?
+
+
+\newpage
+
+# Summary and Conclusions
+
+
+\newpage
+
+# References
+
+Administrative boundaries courtesy of [geoBoundaries](https://www.geoboundaries.org'>geoBoundaries)
+
+Kawoosa, V.M. (2023, March 1). How Turkey has been inundated with aftershocks. *Reuters*. [https://www.reuters.com/graphics/TURKEY-QUAKE/AFTERSHOCKS/dwpkdzklevm/](https://www.reuters.com/graphics/TURKEY-QUAKE/AFTERSHOCKS/dwpkdzklevm/)

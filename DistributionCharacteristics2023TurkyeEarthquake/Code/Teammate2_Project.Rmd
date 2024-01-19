@@ -1,0 +1,385 @@
+---
+title: "Distribution and Characteristics of the 2023 Turkye Earthquake"
+author: "Safia Bamba, Kamil Orozco, and Amanda Sajewski"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: True
+    toc_float: true
+    toc_collapsed: true
+    theme: paper
+geometry: margin=2.54cm
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: 72
+---
+
+\newpage
+\tableofcontents 
+\newpage
+\listoftables 
+\newpage
+\listoffigures 
+\newpage
+
+```{r setup, include=FALSE}
+# Set your working directory
+getwd()
+
+# Load your packages
+# general
+library(tidyverse)
+library(here)
+library(lubridate)
+library(httr)
+library(readxl)
+library(raster)
+# spatial
+library(sf)
+library(gstat)
+library(leaflet)
+library(mapview)
+# graphics
+library(ggplot2)
+library(ggthemes)
+# GLM
+library(agricolae)
+library(zoo)
+
+# Set your ggplot theme
+theme_set(theme_minimal())
+```
+
+# Setup and Data
+```{r dataload1, warning=FALSE, message=FALSE}
+### administrative boundaries of Turkiye
+# install and load rgeoboundaries client for geoBoundaries API
+
+
+# load administrative boundaries for Turkiye from rgeoboundaries; CRS = ESPG 4326
+tur.adm0<- st_read("Data/Shapefiles/TUR_ADM0.shp")
+tur.adm1<- st_read("Data/Shapefiles/TUR_ADM1.shp")
+tur.adm2<- st_read("Data/Shapefiles/TUR_ADM2.shp")
+
+# plot and check boundaries
+plot(st_geometry(tur.adm0))
+plot(st_geometry(tur.adm1))
+plot(st_geometry(tur.adm2))
+
+# save administrative boundary files to shapefile; files can be overwritten when .Rmd is run
+st_write(tur.adm0, here("Data/Shapefiles/TUR_ADM0.shp"), delete_layer = TRUE)
+st_write(tur.adm1, here("Data/Shapefiles/TUR_ADM1.shp"), delete_layer = TRUE)
+st_write(tur.adm2, here("Data/Shapefiles/TUR_ADM2.shp"), delete_layer = TRUE)
+```
+
+```{r dataload2, warning=FALSE, message=FALSE}
+### earthquake data from USGS Earthquake Catalog
+# create bounding box of Turkiye to input coordinates into USGS EC API
+tur.bbox <- st_bbox(tur.adm0)
+# create string of bounding box coordinates for API url
+rectangle <- paste0("minlatitude=", tur.bbox[1], 
+                    "&minlongitude=", tur.bbox[2], 
+                    "&maxlatitude=", tur.bbox[3], 
+                    "&maxlongitude=", tur.bbox[4])
+# USGS Earthquake Catalog API query; February 5, 2023 to March 5, 2023; 
+# minimum magnitude of 0, want all earthquakes during this period csv format 
+tur.USGS.EQC <- GET(paste0("https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv&starttime=2023-02-05&endtime=2023-03-05&", 
+                           rectangle, 
+                           "&minmagnitude=0.0"))
+
+# parse contents of query and create data frame
+EQC.data <- content(tur.USGS.EQC, "text")
+EQC.data.df <- read.csv(text = EQC.data)
+
+# preview data
+head(EQC.data.df)
+
+# plot earthquake points to see quick distribution
+ggplot()+
+  geom_sf(data = tur.adm0, fill = "azure", color = "darkgray") +
+  geom_point(data = EQC.data.df, aes(x=latitude, y=longitude), color = "darkred", size = 0.5)
+
+
+# save earthquake data to csv; files can be overwritten when .Rmd is run
+write.csv(EQC.data.df, row.names = FALSE, file = here("Data/Tabular/TUR_USGS_EQC_FebMar2023.csv"))
+```
+
+```{r dataload3, warning=FALSE, message=FALSE}
+### destroyed building data from UN OCHA HDX portal; data set updated daily
+# download, unzip, read, and save data set
+url <- "https://s3.us-east-1.amazonaws.com/exports-stage.hotosm.org/hotosm_tur_destroyed_buildings_polygons_csv_csv_uid_d3ce51f1-f046-4df9-b0df-2059159c0ece.zip"
+temp <- tempfile()
+download.file(url, temp)
+buildings <- read.csv(unz(temp, "hotosm_tur_destroyed_buildings_polygons_csv.csv"))
+unlink(temp)
+
+# plot destroyed buildings points to see quick distribution
+ggplot()+
+  geom_sf(data = tur.adm0, fill = "azure", color = "darkgray") +
+  geom_point(data = buildings, aes(x=latitude, y=longitude), color = "brown", size = 0.5)
+
+# files can be overwritten when .Rmd is run
+write.csv(buildings, row.names = FALSE, file = here("Data/Tabular/TUR_HDX_destroyedBuildings.csv"))
+```
+
+```{r dataload4, warning=FALSE, message=FALSE}
+### twitter earthquake communications data from UN OCHA HDX portal; data set updated monthly
+# download data
+
+
+download.file("https://data.humdata.org/dataset/a22adc4d-4ae3-4252-a9ba-5d7278f17282/resource/ae7a53d1-7e09-4eaa-9790-13ddcb140e62/download/help_requests_twitter.xlsx",  here("Data/Tabular/TUR_HDX_twitterHelp.xlsx"))
+
+download.file("https://data.humdata.org/dataset/a22adc4d-4ae3-4252-a9ba-5d7278f17282/resource/ed7a25db-e2fb-402a-a433-e3da0b62d3c4/download/shelter_requests_twitter.xlsx",  here("Data/Tabular/TUR_HDX_twitterShelter.xlsx"))
+
+download.file("https://data.humdata.org/dataset/a22adc4d-4ae3-4252-a9ba-5d7278f17282/resource/1e6539f1-d7c0-40d2-bfe9-09f4dd0485c7/download/missing_people_reports_twitter.xlsx",  here("Data/Tabular/TUR_HDX_twitterMissingPeople.xlsx"))
+
+download.file("https://data.humdata.org/dataset/a22adc4d-4ae3-4252-a9ba-5d7278f17282/resource/3f8c3277-cd31-4952-884f-c8ebe2188a00/download/damage_images_twitter.xlsx",  here("Data/Tabular/TUR_HDX_twitterDamageImages.xlsx"))
+
+# read in data
+twt.help1 <- read_excel("Data/Tabular/TUR_HDX_twitterHelp.xlsx")
+twt.help <- as.data.frame(read_excel(here("Data/Tabular/TUR_HDX_twitterHelp.xlsx")))
+twt.shelter <- as.data.frame(read_excel(here("Data/Tabular/TUR_HDX_twitterShelter.xlsx")))
+twt.missingPeople <- as.data.frame(read_excel( here("Data/Tabular/TUR_HDX_twitterMissingPeople.xlsx")))
+twt.damageImages <- as.data.frame(read_excel(here("Data/Tabular/TUR_HDX_twitterDamageImages.xlsx")))
+```
+
+
+
+
+# Rationale and Research Questions
+
+
+
+\newpage
+
+# Dataset Information
+
+
+
+\newpage
+
+# Exploratory Analysis 
+```{r interpolation, warning = FALSE, message = FALSE}
+#########################
+### Spatial Interpolation
+#########################
+
+### create spatially interpolated raster surfaces for earthquake and damaged building data
+
+## Earthquake Data: Setup
+# maker= EQC df an sf object
+EQC.data.sf <- st_as_sf(EQC.data.df, coords = c("longitude", "latitude"), crs = 4326)
+# reproject to projected coordinate system from geographic; ESPG 23035; unit = meters
+EQC.data.sf.reproj <- st_transform(EQC.data.sf, crs = 23035)
+tur.adm0.reproj <- st_transform(tur.adm0, crs = 23035)
+# build blank raster at 10 km resolution; put in same crs as EQC data
+blank.rast <- raster(tur.adm0.reproj, res = 10000)
+
+
+## Earthquake Data: Depth
+gs.depth <- gstat(formula = depth ~ 1, locations = EQC.data.sf.reproj, set=list(idp = 2))
+idw.depth <- interpolate (blank.rast, gs.depth, debug.level = 0)
+idw.rast.depth <- mask(idw.depth, tur.adm0.reproj)
+## Earthquake Data: Magnitude
+gs.mag <- gstat(formula = mag ~ 1, locations = EQC.data.sf.reproj, set=list(idp = 2))
+idw.mag <- interpolate (blank.rast, gs.mag, debug.level = 0)
+idw.rast.mag <- mask(idw.mag, tur.adm0.reproj)
+plot(idw.rast.mag, 1)
+
+# reproject building data to visualize
+buildings.sf <- st_as_sf(buildings, coords = c("longitude", "latitude"), crs = 4326)
+buildings.sf.reproj <- st_transform(buildings.sf, crs = 23035)
+#
+```
+
+
+
+\newpage
+
+# Analysis
+
+
+
+## Question 1: How is depth related to magnitude?
+
+```{r GLMs related to depth and magnitude}
+
+#How is depth related to magnitude? Simple linear regression
+depth_mag_lm <- lm(EQC.data.df$mag ~ EQC.data.df$depth)
+summary(depth_mag_lm)
+#It appears that it is not related through a simple linear regression
+
+#Code to prepare the rasters to run through a simple single linear regression
+s <- stack(idw.rast.depth,idw.rast.mag)
+v <- data.frame(na.omit(values(s)))
+names(v) <- c('idw.rast.depth', 'idw.rast.mag')
+depth_mag_rast_lm <- lm(idw.rast.mag ~ idw.rast.depth, data=v)
+summary(depth_mag_rast_lm)
+
+```
+
+```{r some data wrangling}
+
+#Extract out the original earthquake
+epicenter<- filter(EQC.data.df,mag==7.8)
+epi <- filter(EQC.data.sf, mag==7.8)
+
+#Create a column yes or no for original earthquake
+EQC.data.df <- EQC.data.df %>%
+  mutate(EpicenterYN = ifelse((mag >= 7.5), "yes", "no"))
+
+#Create a distance column from original earthquake
+
+EQC.data.df <- EQC.data.df %>%
+  mutate(distance = distance <- st_distance(EQC.data.sf$geometry, epi$geometry) / 1000,.after=longitude)
+
+
+```
+
+
+```{r GLMs relating depth and magnitude to other variables}
+
+#Can depth be explained by distance from original earthquake
+depth_dist_lm <- lm(data = EQC.data.df, depth ~ distance[,1])
+summary(depth_dist_lm)
+
+summary(lm(data=EQC.data.df, depth~ longitude))
+
+#Can magnitude be explained by distance from original earthquake
+mag_dist_lm <- lm(data = EQC.data.df,mag ~ distance[,1])
+summary(mag_dist_lm)
+
+summary(lm(data=EQC.data.df, mag~ latitude))
+
+#Relating depth and magnitude to time
+
+#creating new date and time columns
+library(hms)
+EQC.data.df <- EQC.data.df %>%
+        mutate(date=as.Date(time,format="%Y-%m-%d"),
+              .after=time)%>%
+  mutate(hms=as_hms(ymd_hms(time)), .after=time)
+
+#Can depth be explained by date
+depth_date_lm <-lm(data=EQC.data.df, depth~date)
+summary(depth_date_lm)
+
+summary(lm(data=EQC.data.df,depth~hms))
+
+depth_time_lm <-lm(data=EQC.data.df,depth~date+hms)
+summary(depth_time_lm)
+
+#Can magnitude be explained by date or time
+mag_date_lm <- lm(data=EQC.data.df,mag ~ date)
+summary(mag_date_lm)
+
+summary(lm(data=EQC.data.df,mag~hms))
+
+mag_time_lm <- lm(data=EQC.data.df, mag ~ date +hms)
+summary(mag_time_lm)
+
+```
+
+``` {r Plotting the GLMs}
+#Magnitude vs. Depth
+depth_mag_plot <- ggplot(EQC.data.df,aes(x=depth,y=mag,color=EpicenterYN))+
+  geom_point()+
+  labs(title="Can magnitude be explained by depth?", x="Depth(km)", y="Magnitude")
+print(depth_mag_plot)
+
+#Depth vs. Location (longitude)
+depth_lon_plot <- ggplot(EQC.data.df,aes(x=longitude,y=depth,color=EpicenterYN))+
+  geom_point()+
+  labs(title="Can depth by explained by location?", x="Longitude (as proxy for location)", y="Depth(km)")
+print(depth_lon_plot)
+
+#Depth vs. Distance from original Earthquake
+library(units)
+depth_dist_plot <- ggplot(EQC.data.df,aes(x=distance,y=depth,color=EpicenterYN))+
+  geom_point()+
+  labs(title="Can depth by explained by distance from first earthquake?", x="Distance(km)", y="Depth(km)")
+print(depth_dist_plot)
+
+#Magnitude vs Location (latitude)
+mag_lat_plot <- ggplot(EQC.data.df,aes(x=latitude,y=mag,color=EpicenterYN))+
+  geom_point()+
+  labs(title="Can magnitude by explained by location?", x="Latitude (as proxy for location)", y="Magnitude")
+print(mag_lat_plot)
+
+#Magnitude vs Distance from orgininal Earthquake
+mag_dist_plot <- ggplot(EQC.data.df,aes(x=distance,y=mag,color=EpicenterYN))+
+  geom_point()+
+  labs(title="Can magnitude by explained by distance from first earthquake?", x="Distance(km)", y="Magnitude")
+print(mag_dist_plot)
+
+#Depth vs Date 
+depth_date_plot <-ggplot(EQC.data.df,aes(x=date,y=depth,color=EpicenterYN))+
+  geom_point()+
+  labs(title="Can depth be explained by Time from original Earthquake(Feb 06)?", x="Date", y="Depth")
+print(depth_date_plot)
+
+#Magnitude vs Date
+mag_date_plot <- ggplot(EQC.data.df,aes(x=date,y=mag,color=EpicenterYN))+
+  geom_point()+
+  labs(title="Can magnitude by explained by  Time from original Earthquake(Feb 06)?", x="Date", y="Magnitude")
+print(mag_date_plot)
+
+
+
+```
+
+## Question 2: 
+
+
+
+
+\newpage
+
+# Summary and Conclusions
+
+Below we get into the statistical analyses we did, looking at magnitude and depth related to each as well as distance and time from the 7.8 magnitude mainshock. Before getting into that, a quick explanation of how earthquakes are measured. Magnitude is the strength of the earthquake, measured directly where the rock breaks or shifts and is related to 'strain-drop' and how much the rock is moving after the break or shift that occurred in the Earth's crust after it built up too much tension (or strain) and the size of the seismic waves that will travel through the crust. In other cases intensity is of more interest, the USGS uses the Moderated Mercalli Scale. This is a measure of how people experience the earthquake, with weak ("Many people don't recognize it as an earthquake, vibrations are similar to a passing truck") to extreme ("Some well-build structures destroyed, most masonry and frame structures with foundations destroyed, rails bent"). Intensity is related to both magnitude and depth; higher magnitude earthquakes occurring at shallower depth will result in higher intensity. The earthquake we are looking at was a 7.8 magnitude earthquake that occurred at 10 km depth.
+
+Magnitude vs Depth
+After running a simple single linear regression, there is very little relationship between depth and magnitude of earthquakes, the r-squared is 0.0006317. This suggests that the variation in depth cannot be explained by magnitude. 
+This statistical result is backed up by the research on the subject. Earthquakes occur in the crust or upper mantle of the Earth, ranging from 0km to 800 km in depth. Most earthquakes are 'shallow' occurring at depths of 50km or less because the rock is colder and more brittle at this depth and so more likely to break under the strain and deformation of the plate. Deeper earthquakes are more likely to occur at subducting plate boundaries, such as the converging zone in the Pacific Ocean.
+
+Depth vs Distance
+Running the same generalized linear model, there is no relationship between depth and distance from the mainshock with an r-squared value of -0.0001214. The variance in depth cannot be explained by distance from the main shock. Research suggests that 'shallow' earthquakes produce more aftershocks. You can see in the data that most of the earthquakes seem to occur at 10km of depth. According the the USGS 10km is a 'fixed earthquake depth', when earthquake data can't be used to compute a reliable depth 10km is used. In most earthquake prone zones of the world, reliable depths tend to average 10km or close to it. This may explain the cluster of earthquakes at 10km.
+
+Depth vs Time & Depth vs Date
+Our most significant relationship was the only multiple linear regression test we ran. Looking at both date and time, the variance in depth was 3.771% explained, with a p-value of 0.00005982. This was primarily due to date, with a single linear regression r-squared value of 0.03278. This relationship is possibly due to the global trend of earthquakes occurring at 10km as well as the drop off in frequency of aftershocks after the mainshock.
+
+Magnitude vs Distance
+Our analysis also indicated no relationship between magnitude and distance from the mainshock with an r-squared value of 0.0007319. This was another instance of the variance in magnitude(or depth) being less than 1% explained by our independent variable, in this case distance from the mainshock. Aftershocks are smaller earthquakes that occur on the same fault, as the rock 'realigns' after the 'strain drop' or the large shift that occurred and caused the mainshock of the first earthquake.  
+
+Magnitude vs Time & Magnitude vs Date
+Our analysis of magnitude had broadly similar results as our analysis for depth. Magnitude was 2.45% explained by the multiple linear regression with date and time. This relationship was significant with a p-value of 0.001321.  This was somewhat surprising, however, after research according to USGS aftershocks typically taper off in frequency but not magnitude after the mainshock, with strong earthquakes possible late in the series. The low r-squared value could be due to the short length of the time window that we looked at. Aftershocks shortly after the mainshock can be just as large or larger, as with the case of our 7.5 magnitude earthquake occurring less than 24 hours after the mainshock of 7.8 magnitude. This secondary large earthquake caused its own series of aftershocks. Other notable aftershocks include a 6.4 magnitude earthquake on February 20th and a 5.6 magnitude earthquake on February 27th. Aftershocks decrease in frequency within a few days after the mainshock but can still last for weeks to years, with each larger aftershock triggering its own series of aftershocks. This is the case in Türkiye and Syria with aftershocks still occurring today. 
+
+
+\newpage
+
+# References
+
+Administrative boundaries courtesy of [geoBoundaries](https://www.geoboundaries.org'>geoBoundaries)
+
+“Aftershock Forecast Overview.” Accessed May 1, 2023. https://earthquake.usgs.gov/data/oaf/overview.php.
+
+“At What Depth Do Earthquakes Occur? What Is the Significance of the Depth? | U.S. Geological Survey.” Accessed May 1, 2023. https://www.usgs.gov/faqs/what-depth-do-earthquakes-occur-what-significance-depth.
+
+
+“Earthquakes: What? Where? How Are They Measured? – Deep Geothermal Heat Research.” Accessed May 1, 2023. https://deepgeothermalheat.engineering.cornell.edu/cubo-science-intro/earthquakes-what-where-how-are-they-measured/.
+
+https://quantectum.com/. “Facts About Earthquake’s Depth.” Accessed May 1, 2023. https://quantectum.com/blog/facts-about-earthquakes-depth/.
+
+Reuters. “How Turkey Has Been Inundated with Aftershocks.” March 1, 2023. https://www.reuters.com/graphics/TURKEY-QUAKE/AFTERSHOCKS/dwpkdzklevm/.
+
+Vallée, Martin. “Source Time Function Properties Indicate a Strain Drop Independent of Earthquake Depth and Magnitude.” Nature Communications 4, no. 1 (October 15, 2013): 2606. https://doi.org/10.1038/ncomms3606.
+
+Webb, Paul. “4.8 Earthquakes and Plate Tectonics.” Accessed May 1, 2023. https://rwu.pressbooks.pub/webboceanography/chapter/4-8-earthquakes-and-plate-tectonics/.
+
+“What Is the Difference between Aftershocks and Swarms? | U.S. Geological Survey.” Accessed May 1, 2023. https://www.usgs.gov/faqs/what-difference-between-aftershocks-and-swarms.
+
+
+
+<add references here if relevant, otherwise delete this section> 
